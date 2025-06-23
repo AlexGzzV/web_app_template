@@ -203,7 +203,7 @@ namespace web_app_template.Server.Services
 
             try
             {
-                var entity = await _repository.FilterByPropertyAsync<TSource>(propertyName, value, includings);
+                var entity = await _repository.FindByPropertyAsync<TSource>(propertyName, value, includings);
 
                 if (entity == null)
                 {
