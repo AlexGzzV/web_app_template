@@ -11,8 +11,6 @@ using web_app_template.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
 builder.Services.AddDbContext<WebAppTemplateDbContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
@@ -22,10 +20,7 @@ builder.Services.AddDbContext<WebAppTemplateDbContext>(options =>
 builder.Services.AddIdentityApiEndpoints<CustomIdentityUser>()
     .AddEntityFrameworkStores<WebAppTemplateDbContext>();
 
-builder.Services.AddControllers().AddJsonOptions(options =>
-{
-    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-});
+builder.Services.AddControllers().AddJsonOptions(options => options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
 
 //Services
 builder.Services.AddTransient<ResponseMessages>();
