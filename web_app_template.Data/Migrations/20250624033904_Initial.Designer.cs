@@ -12,7 +12,7 @@ using web_app_template.Data;
 namespace web_app_template.Data.Migrations
 {
     [DbContext(typeof(WebAppTemplateDbContext))]
-    [Migration("20250623042829_Initial")]
+    [Migration("20250624033904_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -199,6 +199,12 @@ namespace web_app_template.Data.Migrations
 
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("bit");
+
+                    b.Property<string>("RefreshToken")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("RefreshTokenExpiryTime")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");

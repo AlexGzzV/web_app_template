@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
@@ -18,6 +19,7 @@ builder.Services.AddDbContext<WebAppTemplateDbContext>(options =>
 });
 
 builder.Services.AddIdentityApiEndpoints<CustomIdentityUser>()
+    .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<WebAppTemplateDbContext>();
 
 builder.Services.AddControllers().AddJsonOptions(options => options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
@@ -28,9 +30,6 @@ builder.Services.AddTransient<IGenericInterface, GenericService>();
 
 //Repositories
 builder.Services.AddTransient<GenericRepository>();
-
-//Helpers
-FirebaseHelper.Initialize(builder.Configuration);
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -95,6 +94,9 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+//Helpers
+FirebaseHelper.Initialize(app.Configuration);
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
