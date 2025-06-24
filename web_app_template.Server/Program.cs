@@ -84,7 +84,7 @@ builder.Services.AddCors(options =>
         policy =>
         {
 #if DEBUG
-            policy.WithOrigins("https://localhost:52977");
+            policy.WithOrigins("https://localhost:60534");
 #else
             policy.WithOrigins("");
 #endif

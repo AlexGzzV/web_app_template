@@ -1,61 +1,89 @@
-import { useEffect, useState } from 'react';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import Login from './components/auth/Login';
+import Dashboard from './components/dashboard/Dashboard';
+import Users from './components/users/Users';
+import Settings from './components/settings/Settings';
+import Layout from './components/layout/Layout';
 import './App.css';
 
-function App() {
-    const [forecasts, setForecasts] = useState();
+// Protected Route Component
+const ProtectedRoute = ({ children, requiredRole = null }) => {
+  const { user, isAuthenticated } = useAuth();
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  if (requiredRole && user?.role !== requiredRole) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  return children;
+};
 
-    useEffect(() => {
-        populateWeatherData();
-        populatePokemonData();
-    }, []);
+// Main App Component
+const AppContent = () => {
+  const { isAuthenticated } = useAuth();
+  
+  return (
+    <Router>
+      <div className="min-h-screen bg-gray-50">
+        <Routes>
+          <Route 
+            path="/login" 
+            element={
+              isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />
+            } 
+          />
+          <Route 
+            path="/dashboard" 
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Dashboard />
+                </Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/users" 
+            element={
+              <ProtectedRoute requiredRole="Admin">
+                <Layout>
+                  <Users />
+                </Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/settings" 
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Settings />
+                </Layout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/" 
+            element={<Navigate to="/dashboard" replace />} 
+          />
+        </Routes>
+      </div>
+    </Router>
+  );
+};
 
-    const contents = forecasts === undefined
-        ? <p><em>Loading... Please refresh once the ASP.NET backend has started. See <a href="https://aka.ms/jspsintegrationreact">https://aka.ms/jspsintegrationreact</a> for more details.</em></p>
-        : <table className="table table-striped" aria-labelledby="tableLabel">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Temp. (C)</th>
-                    <th>Temp. (F)</th>
-                    <th>Summary</th>
-                </tr>
-            </thead>
-            <tbody>
-                {forecasts.map(forecast =>
-                    <tr key={forecast.date}>
-                        <td>{forecast.date}</td>
-                        <td>{forecast.temperatureC}</td>
-                        <td>{forecast.temperatureF}</td>
-                        <td>{forecast.summary}</td>
-                    </tr>
-                )}
-            </tbody>
-        </table>;
+// App Component with Auth Provider
+const App = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+};
 
-    return (
-        <div>
-            <h1 id="tableLabel">Weather forecast</h1>
-            <p>This component demonstrates fetching data from the server.</p>
-            {contents}
-        </div>
-    );
-
-    async function populateWeatherData() {
-        const response = await fetch('weatherforecast/GetWeatherForecast');
-        if (response.ok) {
-            const data = await response.json();
-            console.log('Weather data fetched successfully:', data);
-            setForecasts(data.data);
-        }
-    }
-
-    async function populatePokemonData() {
-        const response = await fetch('weatherforecast/GetPokemons');
-        if (response.ok) {
-            const data = await response.json();
-            console.log('Weather data fetched successfully:', data);
-        }
-    }
-}
-
-export default App;
+export default App; 

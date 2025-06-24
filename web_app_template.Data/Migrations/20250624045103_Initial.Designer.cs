@@ -12,7 +12,7 @@ using web_app_template.Data;
 namespace web_app_template.Data.Migrations
 {
     [DbContext(typeof(WebAppTemplateDbContext))]
-    [Migration("20250624033904_Initial")]
+    [Migration("20250624045103_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -177,11 +177,20 @@ namespace web_app_template.Data.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<string>("FirstName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LastName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("bit");
 
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("MotherLastName")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("NormalizedEmail")
                         .HasMaxLength(256)
@@ -199,6 +208,9 @@ namespace web_app_template.Data.Migrations
 
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("bit");
+
+                    b.Property<string>("ProfilePicture")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RefreshToken")
                         .HasColumnType("nvarchar(max)");

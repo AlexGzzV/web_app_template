@@ -6,6 +6,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using web_app_template.Domain.Helpers;
 using web_app_template.Domain.Models.Entities;
 using web_app_template.Domain.Models.ViewModels.Auth;
 using web_app_template.Domain.Models.ViewModels.Users;
@@ -97,6 +98,9 @@ namespace web_app_template.Server.Controllers
                 {
                     UserName = model.Email,
                     Email = model.Email,
+                    FirstName = model.FirstName,
+                    LastName = model.LastName,
+                    MotherLastName = model.MotherLastName,
                 };
 
                 var result = await _userManager.CreateAsync(user, model.Password);
@@ -106,6 +110,13 @@ namespace web_app_template.Server.Controllers
                     await _roleManager.CreateAsync(new IdentityRole(role));
 
                 await _userManager.AddToRoleAsync(user, role);
+
+                if (model.ProfilePicture != null)
+                {
+                    using var memoryStream = model.ProfilePicture.OpenReadStream();
+                    user.ProfilePicture = await FirebaseHelper.UploadFile(memoryStream, user.Id, "Users/ProfilePictures");
+                    await _userManager.UpdateAsync(user);
+                }
 
                 return Ok(new { message = "User registered successfully." });
             }
@@ -183,9 +194,12 @@ namespace web_app_template.Server.Controllers
 
             var claims = new List<Claim>
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
+                new Claim(JwtRegisteredClaimNames.Sub, user.Id),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new Claim(ClaimTypes.NameIdentifier, user.Id)
+                new Claim(ClaimTypes.NameIdentifier, user.Id),
+                new Claim("email", user.Email),
+                new Claim("name", $"{user.FirstName} {user.LastName}{(!String.IsNullOrEmpty(user.MotherLastName) ? " " + user.MotherLastName : "")}"),
+                new Claim("profilePicture", user.ProfilePicture)
             }
                 .Union(userClaims)
                 .Union(roleClaims);

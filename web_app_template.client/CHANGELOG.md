@@ -4,10 +4,10 @@ The following tools were used to generate this project:
 - create-vite
 
 The following steps were used to generate this project:
-- Create react project with create-vite: `npm init --yes vite@latest web_app_template.client -- --template=react`.
+- Create react project with create-vite: `npm init --yes vite@latest events_manager.client -- --template=react`.
 - Update `vite.config.js` to set up proxying and certs.
 - Update `App` component to fetch and display weather information.
-- Create project file (`web_app_template.client.esproj`).
+- Create project file (`events_manager.client.esproj`).
 - Create `launch.json` to enable debugging.
 - Add project to solution.
 - Update proxy endpoint to be the backend server endpoint.

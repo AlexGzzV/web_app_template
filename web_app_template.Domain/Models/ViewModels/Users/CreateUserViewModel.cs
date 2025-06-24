@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Microsoft.AspNetCore.Http;
+using System.ComponentModel.DataAnnotations;
 
 namespace web_app_template.Domain.Models.ViewModels.Users
 {
@@ -25,6 +26,8 @@ namespace web_app_template.Domain.Models.ViewModels.Users
 
         [StringLength(50, ErrorMessage = "MotherLastNameMaxLength")]
         public string MotherLastName { get; set; }
+
+        public IFormFile ProfilePicture { get; set; }
 
         public int UserType { get; set; }
     }
