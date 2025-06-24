@@ -32,11 +32,11 @@ namespace web_app_template.Server.Services
 
                     int code = responseData?.message ?? 0;
 
-                    if (!(code >= 200 && code <= 299))
-                        context.Response.StatusCode = code;
-
                     if (code > 0)
                     {
+                        if (!(code >= 200 && code <= 299))
+                            context.Response.StatusCode = code;
+
                         responseData["message"] = _responseMessages.GetMessage(code);
                         responseData["status"] = code;
                         responseData["success"] = code >= 200 && code <= 299 ? true : false;
