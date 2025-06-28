@@ -127,6 +127,8 @@ namespace web_app_template.Data.Repositories
             // Apply filters dynamically
             foreach (var filter in propertyFilters)
             {
+                if (String.IsNullOrEmpty(filter.PropertyName) || filter.Value == null)
+                    continue;
                 var predicate = BuildPredicate<T>(filter);
                 query = query.Where(predicate);
             }
@@ -176,6 +178,8 @@ namespace web_app_template.Data.Repositories
             // Apply filters dynamically
             foreach (var filter in propertyFilters)
             {
+                if (String.IsNullOrEmpty(filter.PropertyName) || filter.Value == null)
+                    continue;
                 var predicate = BuildPredicate<T>(filter);
                 query = query.Where(predicate);
             }
@@ -247,6 +251,8 @@ namespace web_app_template.Data.Repositories
             // Apply filters dynamically
             foreach (var filter in propertyFilters)
             {
+                if (String.IsNullOrEmpty(filter.PropertyName) || filter.Value == null)
+                    continue;
                 var predicate = BuildPredicate<T>(filter);
                 query = query.Where(predicate);
             }
