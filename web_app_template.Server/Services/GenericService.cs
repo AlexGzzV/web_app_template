@@ -116,94 +116,31 @@ namespace web_app_template.Server.Services
         }
 
         /// <summary>
-        /// Retrieves a paginated list of entities of the specified source type, maps them to the specified destination
-        /// type,  and returns the result along with the total count of entities.
+        /// Asynchronously retrieves an entity based on the specified property filters and maps it to the specified
+        /// destination type.
         /// </summary>
-        /// <remarks>This method retrieves entities from the underlying repository, maps them to the
-        /// specified destination type using the configured mapper,  and handles cases where no entities are found or
-        /// mapping fails. In case of an error, an empty result is returned, and the error is logged.</remarks>
-        /// <typeparam name="TSource">The type of the source entities to retrieve. Must be a reference type.</typeparam>
-        /// <typeparam name="TDestination">The type of the destination entities to map to. Must be a reference type.</typeparam>
-        /// <param name="pageNumber">The page number to retrieve. Must be greater than or equal to 1.</param>
-        /// <param name="pageSize">The number of items per page. Must be greater than or equal to 1.</param>
-        /// <returns>A <see cref="PaginatedResult{TDestination}"/> containing the mapped entities for the specified page and the
-        /// total count of entities. If no entities are found, the <c>Items</c> collection will be empty, and
-        /// <c>TotalCount</c> will be 0.</returns>
-        public async Task<PaginatedResult<TDestination>> GetPaginatedAsync<TSource, TDestination>(int pageNumber, int pageSize, List<string> includings = null)
+        /// <remarks>This method queries the data source for an entity that matches the specified property
+        /// filters. If a matching entity is found, it is mapped to the specified destination type. If no entity is
+        /// found, the method returns <see langword="null"/> and sets an internal response message to indicate a "Not
+        /// Found" status. If the mapping operation fails, the method returns <see langword="null"/> and sets an
+        /// internal response message to indicate a "Bad Request" status. In the event of an exception, the method
+        /// returns <see langword="null"/> and sets an internal response message to indicate an "Internal Server Error"
+        /// status.</remarks>
+        /// <typeparam name="TSource">The type of the source entity to query.</typeparam>
+        /// <typeparam name="TDestination">The type to which the retrieved entity will be mapped.</typeparam>
+        /// <param name="propertyFilters">A list of <see cref="PropertyFilter"/> objects that define the filtering criteria for the query. Cannot be
+        /// null or empty.</param>
+        /// <param name="includings">An optional list of related entities to include in the query. Can be null if no related entities need to be
+        /// included.</param>
+        /// <returns>An instance of <typeparamref name="TDestination"/> representing the mapped entity if found; otherwise, <see
+        /// langword="null"/>.</returns>
+        public async Task<TDestination> FindByPropertiesAsync<TSource, TDestination>(List<PropertyFilter> propertyFilters, List<string> includings = null)
             where TSource : class
             where TDestination : class
         {
             try
             {
-                var entities = await _repository.GetPaginatedAsync<TSource>(pageNumber, pageSize, includings);
-
-                if (!entities.Items.Any())
-                {
-                    _responseMessage = ResponseStatusCodes.NotFound;
-                    return new PaginatedResult<TDestination>
-                    {
-                        Items = new List<TDestination>(),
-                        TotalCount = 0
-                    };
-                }
-
-                var mappedEntities = _mapper.Map<List<TDestination>>(entities.Items);
-
-                if (mappedEntities == null)
-                {
-                    _responseMessage = ResponseStatusCodes.BadRequest;
-                    return new PaginatedResult<TDestination>
-                    {
-                        Items = new List<TDestination>(),
-                        TotalCount = 0
-                    };
-                }
-
-                return new PaginatedResult<TDestination>
-                {
-                    Items = mappedEntities,
-                    TotalCount = entities.TotalCount
-                };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error retrieving paginated entities of type {EntityType}", typeof(TSource).Name);
-                _responseMessage = ResponseStatusCodes.InternalServerError;
-                return new PaginatedResult<TDestination>
-                {
-                    Items = new List<TDestination>(),
-                    TotalCount = 0
-                };
-            }
-        }
-
-        /// <summary>
-        /// Asynchronously retrieves an entity of type <typeparamref name="TDestination"/> by searching for a property
-        /// value in the source entity type <typeparamref name="TSource"/>.
-        /// </summary>
-        /// <remarks>This method searches for an entity of type <typeparamref name="TSource"/> where the
-        /// specified property matches the provided value. If a match is found, the entity is mapped to an instance of
-        /// <typeparamref name="TDestination"/>. If no match is found, or if the mapping fails, the method returns <see
-        /// langword="null"/>.</remarks>
-        /// <typeparam name="TSource">The type of the source entity to search.</typeparam>
-        /// <typeparam name="TDestination">The type of the destination entity to map the result to.</typeparam>
-        /// <param name="propertyName">The name of the property to search for. Cannot be null or empty.</param>
-        /// <param name="value">The value of the property to match. Cannot be null.</param>
-        /// <returns>An instance of <typeparamref name="TDestination"/> mapped from the matching <typeparamref name="TSource"/>
-        /// entity, or <see langword="null"/> if no matching entity is found or if an error occurs.</returns>
-        public async Task<TDestination> FindByPropertyAsync<TSource, TDestination>(string propertyName, object value, List<string> includings = null)
-            where TSource : class
-            where TDestination : class
-        {
-            if (String.IsNullOrEmpty(propertyName) || value == null)
-            {
-                _responseMessage = ResponseStatusCodes.BadRequest;
-                return null;
-            }
-
-            try
-            {
-                var entity = await _repository.FindByPropertyAsync<TSource>(propertyName, value, includings);
+                var entity = await _repository.FindByPropertiesAsync<TSource>(propertyFilters, includings);
 
                 if (entity == null)
                 {
@@ -223,34 +160,34 @@ namespace web_app_template.Server.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error finding entity of type {EntityType} by property {PropertyName} with value {Value}", typeof(TSource).Name, propertyName, value);
+                _logger.LogError(ex, "Error finding entity of type {EntityType} with properties {PropertyFilters}", typeof(TSource).Name, propertyFilters);
                 _responseMessage = ResponseStatusCodes.InternalServerError;
                 return null;
             }
         }
 
         /// <summary>
-        /// Filters a collection of entities of type <typeparamref name="TSource"/> based on the specified property name
-        /// and value, and maps the filtered results to a list of type <typeparamref name="TDestination"/>.
+        /// Filters a collection of entities based on the specified property filters, maps the results to the specified
+        /// destination type, and returns the filtered and mapped collection.
         /// </summary>
-        /// <remarks>If no entities match the specified filter criteria, an empty list is returned, and a
-        /// "NotFound" response status is set internally. If the mapping operation fails, an empty list is returned, and
-        /// a "BadRequest" response status is set internally. In the event of an exception, an empty list is returned,
-        /// and a "InternalServerError" response status is set internally.</remarks>
-        /// <typeparam name="TSource">The type of the source entities to filter. Must be a reference type.</typeparam>
-        /// <typeparam name="TDestination">The type of the destination entities to map the results to. Must be a reference type.</typeparam>
-        /// <param name="propertyName">The name of the property to filter by. This must match a valid property name of <typeparamref
-        /// name="TSource"/>.</param>
-        /// <param name="value">The value to filter the property by. The comparison is typically performed using equality.</param>
-        /// <returns>A list of entities of type <typeparamref name="TDestination"/> that match the specified filter criteria. 
-        /// Returns an empty list if no matching entities are found or if an error occurs during processing.</returns>
-        public async Task<List<TDestination>> FilterByPropertyAsync<TSource, TDestination>(string propertyName, object value, List<string> includings = null)
+        /// <remarks>This method uses a repository to perform the filtering operation and a mapper to
+        /// transform the filtered entities into the destination type. If no entities match the specified filters, an
+        /// empty list is returned. If an error occurs during mapping or filtering, an empty list is also
+        /// returned.</remarks>
+        /// <typeparam name="TSource">The type of the source entities to filter.</typeparam>
+        /// <typeparam name="TDestination">The type to which the filtered entities will be mapped.</typeparam>
+        /// <param name="propertyFilters">A list of <see cref="PropertyFilter"/> objects that define the filtering criteria.</param>
+        /// <param name="order">The sorting order for the filtered results. Defaults to 1.</param>
+        /// <param name="includings">An optional list of related entities to include in the query results.</param>
+        /// <returns>A list of <typeparamref name="TDestination"/> objects representing the filtered and mapped entities. Returns
+        /// an empty list if no entities match the filters or if an error occurs during processing.</returns>
+        public async Task<List<TDestination>> FilterByPropertiesAsync<TSource, TDestination>(List<PropertyFilter> propertyFilters, int order = 1, List<string> includings = null)
             where TSource : class
             where TDestination : class
         {
             try
             {
-                var entities = await _repository.FilterByPropertyAsync<TSource>(propertyName, value, includings);
+                var entities = await _repository.FilterByPropertiesAsync<TSource>(propertyFilters, order, includings);
 
                 if (!entities.Any())
                 {
@@ -270,36 +207,37 @@ namespace web_app_template.Server.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error filtering entities of type {EntityType} by property {PropertyName} with value {Value}", typeof(TSource).Name, propertyName, value);
+                _logger.LogError(ex, "Error filtering entities of type {EntityType} with properties {PropertyFilters}", typeof(TSource).Name, propertyFilters);
                 _responseMessage = ResponseStatusCodes.InternalServerError;
                 return new List<TDestination>();
             }
         }
 
         /// <summary>
-        /// Filters a collection of entities by a specified property and value, and returns a paginated result.
+        /// Retrieves a paginated and filtered list of entities, maps them to the specified destination type,  and
+        /// returns the result as a <see cref="PaginatedResult{TDestination}"/>.
         /// </summary>
-        /// <remarks>This method filters entities of type <typeparamref name="TSource"/> based on the
-        /// specified property and value, maps the results to type <typeparamref name="TDestination"/>, and returns a
-        /// paginated result. If an error occurs during filtering or mapping, the method logs the error and returns an
-        /// empty result set.</remarks>
-        /// <typeparam name="TSource">The type of the source entity to filter.</typeparam>
-        /// <typeparam name="TDestination">The type of the destination entity to map the results to.</typeparam>
-        /// <param name="propertyName">The name of the property to filter by. This must match a valid property of <typeparamref name="TSource"/>.</param>
-        /// <param name="value">The value to filter the property by. The comparison is typically case-sensitive and exact, depending on the
-        /// repository implementation.</param>
+        /// <remarks>This method applies the specified filters and pagination to the source entities, maps
+        /// the results to the  destination type, and returns the paginated result. If an error occurs during
+        /// processing, an empty result  is returned.</remarks>
+        /// <typeparam name="TSource">The type of the source entities to filter and paginate.</typeparam>
+        /// <typeparam name="TDestination">The type to which the source entities will be mapped.</typeparam>
+        /// <param name="propertyFilters">A list of <see cref="PropertyFilter"/> objects used to filter the source entities.</param>
         /// <param name="pageNumber">The page number to retrieve. Must be greater than or equal to 1.</param>
-        /// <param name="pageSize">The number of items per page. Must be greater than or equal to 1.</param>
-        /// <returns>A <see cref="PaginatedResult{TDestination}"/> containing the filtered and paginated results. If no matching
-        /// entities are found, the <see cref="PaginatedResult{TDestination}.Items"/> collection will be empty, and <see
-        /// cref="PaginatedResult{TDestination}.TotalCount"/> will be 0.</returns>
-        public async Task<PaginatedResult<TDestination>> FilterPaginatedAsync<TSource, TDestination>(string propertyName, object value, int pageNumber, int pageSize, List<string> includings = null)
+        /// <param name="pageSize">The number of items per page. Must be greater than 0.</param>
+        /// <param name="order">The sorting order for the results. Use 1 for ascending order and -1 for descending order.</param>
+        /// <param name="includings">An optional list of related entities to include in the query. Can be null if no related entities are
+        /// required.</param>
+        /// <returns>A <see cref="PaginatedResult{TDestination}"/> containing the filtered and paginated list of mapped entities.
+        /// If no entities match the filters, the <see cref="PaginatedResult{TDestination}.Items"/> collection will be
+        /// empty,  and <see cref="PaginatedResult{TDestination}.TotalCount"/> will be 0.</returns>
+        public async Task<PaginatedResult<TDestination>> FilterPaginatedAsync<TSource, TDestination>(List<PropertyFilter> propertyFilters, int pageNumber, int pageSize, int order = 1, List<string> includings = null)
             where TSource : class
             where TDestination : class
         {
             try
             {
-                var entities = await _repository.FilterPaginatedAsync<TSource>(propertyName, value, pageNumber, pageSize, includings);
+                var entities = await _repository.FilterPaginatedAsync<TSource>(propertyFilters, pageNumber, pageSize, order, includings);
 
                 if (!entities.Items.Any())
                 {
@@ -331,7 +269,8 @@ namespace web_app_template.Server.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error filtering paginated entities of type {EntityType} by property {PropertyName} with value {Value}", typeof(TSource).Name, propertyName, value);
+                _logger.LogError(ex, "Error filtering and paginating entities of type {EntityType} with properties {PropertyFilters}, page number {PageNumber}, page size {PageSize}, order {Order}",
+                    typeof(TSource).Name, propertyFilters, pageNumber, pageSize, order);
                 _responseMessage = ResponseStatusCodes.InternalServerError;
                 return new PaginatedResult<TDestination>
                 {

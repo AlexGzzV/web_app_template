@@ -1,5 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Linq.Expressions;
+using web_app_template.Domain.Models;
 
 namespace web_app_template.Data.Repositories
 {
@@ -15,26 +17,36 @@ namespace web_app_template.Data.Repositories
         }
 
         /// <summary>
-        /// Asynchronously retrieves an entity of the specified type by its unique identifier, with optional related
-        /// data included.
+        /// Asynchronously retrieves an entity of the specified type by its unique identifier, with optional navigation
+        /// properties included.
         /// </summary>
-        /// <remarks>This method logs information about the retrieval process, including whether the
-        /// entity was found. If the entity is not found, a warning is logged.</remarks>
+        /// <remarks>This method uses Entity Framework Core to query the database. The navigation
+        /// properties specified in  <paramref name="includings"/> are included in the query if they exist on the entity
+        /// type.  If the entity is not found, a warning is logged.</remarks>
         /// <typeparam name="T">The type of the entity to retrieve. Must be a reference type.</typeparam>
-        /// <typeparam name="TIncluding">The type of the related data to include. Typically represents navigation properties.</typeparam>
         /// <param name="id">The unique identifier of the entity to retrieve.</param>
-        /// <param name="includings">An optional list of related data to include in the query. Each item in the list represents a navigation
-        /// property to be included. If <paramref name="includings"/> is null, no related data will be included.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains the entity of type <typeparamref
-        /// name="T"/> if found; otherwise, <see langword="null"/>.</returns>
+        /// <param name="includings">An optional list of navigation property names to include in the query.  If a specified property does not
+        /// exist on the entity type, it will be ignored, and a warning will be logged.</param>
+        /// <returns>The entity of type <typeparamref name="T"/> with the specified identifier, or <see langword="null"/> if no
+        /// such entity exists.</returns>
         public async Task<T> GetByIdAsync<T>(int id, List<string> includings = null) where T : class
         {
             _logger.LogInformation($"Fetching entity of type {typeof(T).Name} with ID {id}");
             var query = _context.Set<T>().AsQueryable();
 
             if (includings != null)
+            {
+                var entityType = typeof(T);
                 foreach (var including in includings)
-                    query = query.Include(including);
+                {
+                    // Check if the navigation property exists (case-insensitive)
+                    var prop = entityType.GetProperty(including, System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (prop != null)
+                        query = query.Include(including);
+                    else
+                        _logger.LogWarning($"Navigation property '{including}' does not exist on entity '{entityType.Name}'.");
+                }
+            }
 
             var entity = await query.FirstOrDefaultAsync(e => EF.Property<object>(e, "Id").Equals(id));
 
@@ -45,25 +57,34 @@ namespace web_app_template.Data.Repositories
 
         /// <summary>
         /// Asynchronously retrieves all entities of the specified type from the database,  with optional navigation
-        /// property inclusion.
+        /// properties included.
         /// </summary>
-        /// <remarks>This method logs informational messages when fetching entities and logs a warning if
-        /// no  entities of the specified type are found.</remarks>
+        /// <remarks>This method logs information about the retrieval process, including warnings if
+        /// specified navigation properties  do not exist on the entity type. Ensure that the provided navigation
+        /// property names are valid for the entity type.</remarks>
         /// <typeparam name="T">The type of the entities to retrieve. Must be a reference type.</typeparam>
-        /// <typeparam name="TIncluding">The type of the navigation properties to include. This is used to specify related entities  to load along
-        /// with the main entities.</typeparam>
-        /// <param name="includings">A list of navigation properties to include in the query. Each item in the list represents  a related entity
-        /// to be eagerly loaded. If null, no related entities are included.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains a list of  entities of type
-        /// <typeparamref name="T"/>. If no entities are found, an empty list is returned.</returns>
+        /// <param name="includings">A list of navigation property names to include in the query.  If null or empty, no navigation properties are
+        /// included.  Navigation property names are case-insensitive.</param>
+        /// <returns>A task that represents the asynchronous operation. The task result contains a list of entities of type
+        /// <typeparamref name="T"/>. If no entities are found, the list will be empty.</returns>
         public async Task<List<T>> GetAllAsync<T>(List<string> includings = null) where T : class
         {
             _logger.LogInformation($"Fetching all entities of type {typeof(T).Name}");
             var query = _context.Set<T>().AsQueryable();
 
             if (includings != null)
+            {
+                var entityType = typeof(T);
                 foreach (var including in includings)
-                    query = query.Include(including);
+                {
+                    // Check if the navigation property exists (case-insensitive)
+                    var prop = entityType.GetProperty(including, System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (prop != null)
+                        query = query.Include(including);
+                    else
+                        _logger.LogWarning($"Navigation property '{including}' does not exist on entity '{entityType.Name}'.");
+                }
+            }
 
             var entities = await query.ToListAsync();
 
@@ -73,95 +94,111 @@ namespace web_app_template.Data.Repositories
         }
 
         /// <summary>
-        /// Retrieves a paginated list of entities of the specified type, along with the total count of entities in the
-        /// data source.
+        /// Asynchronously retrieves the first entity of the specified type that matches the given property filters.
         /// </summary>
-        /// <remarks>This method uses Entity Framework to query the data source. If <paramref
-        /// name="includings"/> is provided, the specified related entities will be included in the query using the <see
-        /// cref="Microsoft.EntityFrameworkCore.Query.IQueryableExtensions.Include{TEntity, TProperty}"/>
-        /// method.</remarks>
-        /// <typeparam name="T">The type of the entities to retrieve.</typeparam>
-        /// <typeparam name="TIncluding">The type of the related entities to include in the query.</typeparam>
-        /// <param name="pageNumber">The page number to retrieve. Must be greater than or equal to 1.</param>
-        /// <param name="pageSize">The number of items per page. Must be greater than or equal to 1.</param>
-        /// <param name="includings">An optional list of related entities to include in the query. If null, no related entities are included.</param>
-        /// <returns>A tuple containing a list of entities of type <typeparamref name="T"/> and the total count of entities in
-        /// the data source. The list will contain up to <paramref name="pageSize"/> items, or fewer if there are not
-        /// enough entities to fill the page.</returns>
-        public async Task<(List<T> Items, int TotalCount)> GetPaginatedAsync<T>(int pageNumber, int pageSize, List<string> includings = null) where T : class
+        /// <remarks>This method dynamically applies the specified filters and includes navigation
+        /// properties in the query. If no entity matches the filters, a warning is logged. The method is
+        /// case-insensitive when checking for the existence of navigation properties.</remarks>
+        /// <typeparam name="T">The type of the entity to retrieve. Must be a reference type.</typeparam>
+        /// <param name="propertyFilters">A list of <see cref="PropertyFilter"/> objects that define the filtering criteria. Each filter specifies a
+        /// property name, a comparison operator, and a value to match.</param>
+        /// <param name="includings">An optional list of navigation property names to include in the query. These properties will be eagerly
+        /// loaded if they exist on the entity type. If a specified property does not exist, a warning will be logged.</param>
+        /// <returns>The first entity of type <typeparamref name="T"/> that matches the specified filters, or <see
+        /// langword="null"/> if no such entity is found.</returns>
+        public async Task<T> FindByPropertiesAsync<T>(List<PropertyFilter> propertyFilters, List<string> includings = null) where T : class
         {
-            _logger.LogInformation($"Fetching paginated entities of type {typeof(T).Name} - Page {pageNumber}, Size {pageSize}");
             var query = _context.Set<T>().AsQueryable();
 
             if (includings != null)
+            {
+                var entityType = typeof(T);
                 foreach (var including in includings)
-                    query = query.Include(including);
+                {
+                    // Check if the navigation property exists (case-insensitive)
+                    var prop = entityType.GetProperty(including, System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (prop != null)
+                        query = query.Include(including);
+                    else
+                        _logger.LogWarning($"Navigation property '{including}' does not exist on entity '{entityType.Name}'.");
+                }
+            }
 
-            var totalCount = await query.CountAsync();
-            var items = await query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync();
-            return (items, totalCount);
-        }
+            // Apply filters dynamically
+            foreach (var filter in propertyFilters)
+            {
+                var predicate = BuildPredicate<T>(filter);
+                query = query.Where(predicate);
+            }
 
-        /// <summary>
-        /// Asynchronously finds an entity of the specified type by a given property name and value.
-        /// </summary>
-        /// <remarks>This method uses Entity Framework Core to query the database. The <paramref
-        /// name="propertyName"/> must correspond to a valid property of the entity type <typeparamref name="T"/>. The
-        /// <paramref name="includings"/> parameter allows eager loading of related entities to reduce subsequent
-        /// database queries.</remarks>
-        /// <typeparam name="T">The type of the entity to search for.</typeparam>
-        /// <typeparam name="TIncluding">The type of the related entities to include in the query.</typeparam>
-        /// <param name="propertyName">The name of the property to filter by. This must match the property name in the entity type <typeparamref
-        /// name="T"/>.</param>
-        /// <param name="value">The value of the property to match.</param>
-        /// <param name="includings">An optional list of related entities to include in the query. Each item in the list should correspond to a
-        /// navigation property of the entity type <typeparamref name="T"/>.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains the first entity of type
-        /// <typeparamref name="T"/> that matches the specified property name and value, or <see langword="null"/> if no
-        /// such entity is found.</returns>
-        public async Task<T> FindByPropertyAsync<T>(string propertyName, object value, List<string> includings = null) where T : class
-        {
-            _logger.LogInformation($"Searching for entity of type {typeof(T).Name} with {propertyName} = {value}");
-            var query = _context.Set<T>().AsQueryable();
-
-            if (includings != null)
-                foreach (var including in includings)
-                    query = query.Include(including);
-
-            var entity = await query.FirstOrDefaultAsync(e => EF.Property<object>(e, propertyName).Equals(value));
+            var entity = await query.FirstOrDefaultAsync();
 
             if (entity == null)
-                _logger.LogWarning($"Entity of type {typeof(T).Name} with {propertyName} = {value} not found");
+                _logger.LogWarning($"No entity of type {typeof(T).Name} found with the specified condition");
             return entity;
         }
 
         /// <summary>
-        /// Filters entities of the specified type based on a property value and returns the matching results.
+        /// Filters a collection of entities of type <typeparamref name="T"/> based on the specified property filters,
+        /// optionally including related navigation properties and applying sorting.
         /// </summary>
-        /// <remarks>This method uses Entity Framework Core to query the database. The <paramref
-        /// name="propertyName"/> must correspond to a valid property in the entity type <typeparamref name="T"/>. The
-        /// <paramref name="includings"/> parameter allows eager loading of related entities to reduce the number of
-        /// database queries.</remarks>
-        /// <typeparam name="T">The type of the entities to filter.</typeparam>
-        /// <typeparam name="TIncluding">The type of the related entities to include in the query.</typeparam>
-        /// <param name="propertyName">The name of the property to filter by. This must match the property name in the entity type <typeparamref
-        /// name="T"/>.</param>
-        /// <param name="value">The value to match against the specified property.</param>
-        /// <param name="includings">An optional list of related entities to include in the query. Each item in the list should correspond to a
-        /// navigation property in the entity type <typeparamref name="T"/>.</param>
+        /// <remarks>- If the <paramref name="includings"/> parameter contains navigation properties that
+        /// do not exist on the entity type, a warning is logged, and those properties are ignored. - If no filters are
+        /// provided, all entities of type <typeparamref name="T"/> are returned. - If the <paramref name="order"/>
+        /// parameter is invalid, no specific sorting is applied.</remarks>
+        /// <typeparam name="T">The type of the entity to filter. Must be a reference type.</typeparam>
+        /// <param name="propertyFilters">A list of <see cref="PropertyFilter"/> objects that define the filtering criteria. Each filter specifies a
+        /// property name, a comparison operator, and a value.</param>
+        /// <param name="order">The sorting order to apply to the results. Use <c>1</c> for ascending order, <c>2</c> for descending order,
+        /// or any other value for no specific order.</param>
+        /// <param name="includings">A list of navigation property names to include in the query. Navigation properties are included only if they
+        /// exist on the entity type <typeparamref name="T"/>.</param>
         /// <returns>A task that represents the asynchronous operation. The task result contains a list of entities of type
-        /// <typeparamref name="T"/> that match the specified property value. If no entities match, an empty list is
-        /// returned.</returns>
-        public async Task<List<T>> FilterByPropertyAsync<T>(string propertyName, object value, List<string> includings = null) where T : class
+        /// <typeparamref name="T"/> that match the specified filters. If no entities match, an empty list is returned.</returns>
+        public async Task<List<T>> FilterByPropertiesAsync<T>(List<PropertyFilter> propertyFilters, int order = 1, List<string> includings = null) where T : class
         {
-            _logger.LogInformation($"Finding entities of type {typeof(T).Name} with {propertyName} = {value}");
             var query = _context.Set<T>().AsQueryable();
 
             if (includings != null)
+            {
+                var entityType = typeof(T);
                 foreach (var including in includings)
-                    query = query.Include(including);
+                {
+                    // Check if the navigation property exists (case-insensitive)
+                    var prop = entityType.GetProperty(including, System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (prop != null)
+                        query = query.Include(including);
+                    else
+                        _logger.LogWarning($"Navigation property '{including}' does not exist on entity '{entityType.Name}'.");
+                }
+            }
 
-            var entities = await query.Where(e => EF.Property<object>(e, propertyName).Equals(value)).ToListAsync();
+            // Apply filters dynamically
+            foreach (var filter in propertyFilters)
+            {
+                var predicate = BuildPredicate<T>(filter);
+                query = query.Where(predicate);
+            }
+
+            // Order by the first filter property, if it exists
+            if (propertyFilters.Count > 0)
+            {
+                var firstFilter = propertyFilters[0];
+                switch (order)
+                {
+                    case 1:
+                        query = query.OrderBy(e => EF.Property<object>(e, firstFilter.PropertyName));
+                        break;
+                    case 2:
+                        query = query.OrderByDescending(e => EF.Property<object>(e, firstFilter.PropertyName));
+                        break;
+                    default:
+                        _logger.LogWarning($"Invalid order specified: {order}. Defaulting to no specific order.");
+                        break;
+                }
+            }
+
+            var entities = await query.ToListAsync();
 
             if (entities == null || !entities.Any())
                 _logger.LogWarning($"No entities of type {typeof(T).Name} found with the specified condition");
@@ -169,32 +206,68 @@ namespace web_app_template.Data.Repositories
         }
 
         /// <summary>
-        /// Retrieves a paginated list of entities of the specified type that match a given property value.
+        /// Retrieves a paginated and filtered list of entities from the database.
         /// </summary>
-        /// <remarks>This method uses Entity Framework Core to query the database. The <paramref
-        /// name="propertyName"/> must correspond to a valid property of the entity type <typeparamref name="T"/>. The
-        /// method supports eager loading of related entities specified in the <paramref name="includings"/>
-        /// parameter.</remarks>
-        /// <typeparam name="T">The type of the entities to retrieve.</typeparam>
-        /// <typeparam name="TIncluding">The type of the related entities to include in the query.</typeparam>
-        /// <param name="propertyName">The name of the property to filter by. Must match a property of the entity type <typeparamref name="T"/>.</param>
-        /// <param name="value">The value to filter the specified property by.</param>
+        /// <remarks>This method dynamically applies filters and includes navigation properties based on
+        /// the provided parameters. If a specified navigation property in <paramref name="includings"/> does not exist
+        /// on the entity type, a warning is logged, and the property is ignored.  The method orders the results by the
+        /// first filter's property name if filters are provided and a valid <paramref name="order"/> value is
+        /// specified. If no valid order is provided, the results are returned without a specific order.</remarks>
+        /// <typeparam name="T">The type of the entity to query. Must be a class.</typeparam>
+        /// <param name="propertyFilters">A list of <see cref="PropertyFilter"/> objects that define the filtering criteria. Each filter specifies a
+        /// property name and a condition to apply.</param>
         /// <param name="pageNumber">The page number to retrieve. Must be greater than or equal to 1.</param>
-        /// <param name="pageSize">The number of items per page. Must be greater than or equal to 1.</param>
-        /// <param name="includings">A list of related entities to include in the query. Each item in the list represents a navigation property
-        /// to include. If null, no related entities are included.</param>
-        /// <returns>A tuple containing the following: <list type="bullet"> <item> <description><see cref="List{T}"/>: A list of
-        /// entities of type <typeparamref name="T"/> that match the filter criteria for the specified
-        /// page.</description> </item> <item> <description><see cref="int"/>: The total count of entities that match
-        /// the filter criteria across all pages.</description> </item> </list></returns>
-        public async Task<(List<T> Items, int TotalCount)> FilterPaginatedAsync<T>(string propertyName, object value, int pageNumber, int pageSize, List<string> includings = null) where T : class
+        /// <param name="pageSize">The number of items to include in each page. Must be greater than 0.</param>
+        /// <param name="order">Specifies the sort order for the results. Use <see langword="1"/> for ascending order and <see
+        /// langword="2"/> for descending order. Defaults to <see langword="1"/>.</param>
+        /// <param name="includings">A list of navigation property names to include in the query. These properties must exist on the entity type
+        /// <typeparamref name="T"/>. If <see langword="null"/>, no navigation properties are included.</param>
+        /// <returns>A tuple containing the following: <list type="bullet"> <item> <description> <see cref="List{T}"/>: The list
+        /// of entities that match the specified filters and pagination criteria. </description> </item> <item>
+        /// <description> <see cref="int"/>: The total count of entities that match the specified filters, ignoring
+        /// pagination. </description> </item> </list></returns>
+        public async Task<(List<T> Items, int TotalCount)> FilterPaginatedAsync<T>(List<PropertyFilter> propertyFilters, int pageNumber, int pageSize, int order = 1, List<string> includings = null) where T : class
         {
-            _logger.LogInformation($"Fetching paginated entities of type {typeof(T).Name} with {propertyName} = {value} - Page {pageNumber}, Size {pageSize}");
-            var query = _context.Set<T>().Where(e => EF.Property<object>(e, propertyName).Equals(value)).AsQueryable();
+            var query = _context.Set<T>().AsQueryable();
 
             if (includings != null)
+            {
+                var entityType = typeof(T);
                 foreach (var including in includings)
-                    query = query.Include(including);
+                {
+                    // Check if the navigation property exists (case-insensitive)
+                    var prop = entityType.GetProperty(including, System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (prop != null)
+                        query = query.Include(including);
+                    else
+                        _logger.LogWarning($"Navigation property '{including}' does not exist on entity '{entityType.Name}'.");
+                }
+            }
+
+            // Apply filters dynamically
+            foreach (var filter in propertyFilters)
+            {
+                var predicate = BuildPredicate<T>(filter);
+                query = query.Where(predicate);
+            }
+
+            // Order by the first filter property, if it exists
+            if (propertyFilters.Count > 0)
+            {
+                var firstFilter = propertyFilters[0];
+                switch (order)
+                {
+                    case 1:
+                        query = query.OrderBy(e => EF.Property<object>(e, firstFilter.PropertyName));
+                        break;
+                    case 2:
+                        query = query.OrderByDescending(e => EF.Property<object>(e, firstFilter.PropertyName));
+                        break;
+                    default:
+                        _logger.LogWarning($"Invalid order specified: {order}. Defaulting to no specific order.");
+                        break;
+                }
+            }
 
             var totalCount = await query.CountAsync();
             var items = await query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync();
@@ -294,6 +367,40 @@ namespace web_app_template.Data.Repositories
                 _logger.LogError(ex, $"Error deleting entity of type {typeof(T).Name}");
                 return false;
             }
+        }
+
+        private static Expression<Func<T, bool>> BuildPredicate<T>(PropertyFilter filter)
+        {
+            var param = Expression.Parameter(typeof(T), "e");
+            var property = Expression.Property(param, filter.PropertyName);
+            var constant = Expression.Constant(filter.Value);
+            Expression body;
+
+            switch (filter.Operator)
+            {
+                case "==":
+                    body = Expression.Equal(property, Expression.Convert(constant, property.Type));
+                    break;
+                case "!=":
+                    body = Expression.NotEqual(property, Expression.Convert(constant, property.Type));
+                    break;
+                case ">":
+                    body = Expression.GreaterThan(property, Expression.Convert(constant, property.Type));
+                    break;
+                case "<":
+                    body = Expression.LessThan(property, Expression.Convert(constant, property.Type));
+                    break;
+                case ">=":
+                    body = Expression.GreaterThanOrEqual(property, Expression.Convert(constant, property.Type));
+                    break;
+                case "<=":
+                    body = Expression.LessThanOrEqual(property, Expression.Convert(constant, property.Type));
+                    break;
+                default:
+                    throw new NotSupportedException($"Operador '{filter.Operator}' no soportado.");
+            }
+
+            return Expression.Lambda<Func<T, bool>>(body, param);
         }
     }
 }

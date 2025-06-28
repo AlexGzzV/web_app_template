@@ -54,7 +54,12 @@ namespace web_app_template.Server.Controllers
         {
             ApiResponse<PaginatedResult<Pokemon>> response = new ApiResponse<PaginatedResult<Pokemon>>();
 
-            var result = await _genericService.FilterPaginatedAsync<Pokemon, Pokemon>("Owner", "Ash Ketchum", 1, 2);
+            List<PropertyFilter> propertyFilters = new List<PropertyFilter>
+                {
+                    new PropertyFilter { PropertyName = "Owner", Value = "Ash Ketchum" }
+                };
+
+            var result = await _genericService.FilterPaginatedAsync<Pokemon, Pokemon>(propertyFilters, 1, 2);
 
             response.Message = ResponseStatusCodes.Ok;
             response.Data = new PaginatedResult<Pokemon>
